@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* Chỉ định thư mục chứa code của bạn để Tailwind quét class */
+@source "../**/*.{js,ts,jsx,tsx}";
+
+/* Nếu đã cài npm install tw-animate-css thì mới dùng dòng dưới */
+@import "tw-animate-css";

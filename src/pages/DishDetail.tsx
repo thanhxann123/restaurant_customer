@@ -1,10 +1,10 @@
 import { motion } from "motion/react";
 import { X, Plus, Minus, ShoppingCart } from "lucide-react";
 import { useState } from "react";
-import type { Dish } from "../data/menu";
+import type { Menu } from "../types";
 
 interface DishDetailProps {
-  dish: Dish;
+  dish: Menu;
   onClose: () => void;
   onAddToCart: (quantity: number, notes: string) => void;
 }
@@ -26,7 +26,6 @@ export function DishDetail({ dish, onClose, onAddToCart }: DishDetailProps) {
     const finalNotes = [...selectedTags, notes.trim() && notes]
       .filter(Boolean)
       .join(", ");
-
     onAddToCart(quantity, finalNotes);
   };
 
@@ -54,16 +53,13 @@ export function DishDetail({ dish, onClose, onAddToCart }: DishDetailProps) {
             onClick={onClose}
             className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center"
           >
-            <X
-              className="w-5 h-5 text-gray-600 dark:text-gray-400"
-              strokeWidth={2}
-            />
+            <X className="w-5 h-5 text-gray-600 dark:text-gray-400" strokeWidth={2} />
           </button>
         </div>
 
         <div className="relative">
           <img
-            src={dish.image}
+            src={dish.imageUrl}
             alt={dish.name}
             className="w-full h-64 object-cover"
           />
@@ -86,38 +82,17 @@ export function DishDetail({ dish, onClose, onAddToCart }: DishDetailProps) {
           </p>
 
           <div className="mb-6">
-            <h3 className="font-bold text-[#0F172A] dark:text-[#F1F5F9] mb-3">
-              Thành phần
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {dish.ingredients.map((ingredient, index) => (
-                <span
-                  key={index}
-                  className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full text-sm"
-                >
-                  {ingredient}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <h3 className="font-bold text-[#0F172A] dark:text-[#F1F5F9] mb-3">
-              Tùy chọn nhanh
-            </h3>
+            <h3 className="font-bold text-[#0F172A] dark:text-[#F1F5F9] mb-3">Tùy chọn nhanh</h3>
             <div className="flex flex-wrap gap-2">
               {quickTags.map((tag) => (
                 <button
                   key={tag}
                   onClick={() => toggleTag(tag)}
-                  className={`
-                    px-4 py-2 rounded-full text-sm font-medium transition-all duration-300
-                    ${
-                      selectedTags.includes(tag)
-                        ? "bg-[#FF6B00] text-white"
-                        : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-                    }
-                  `}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                    selectedTags.includes(tag)
+                      ? "bg-[#FF6B00] text-white"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                  }`}
                 >
                   {tag}
                 </button>
@@ -126,39 +101,32 @@ export function DishDetail({ dish, onClose, onAddToCart }: DishDetailProps) {
           </div>
 
           <div className="mb-6">
-            <h3 className="font-bold text-[#0F172A] dark:text-[#F1F5F9] mb-3">
-              Ghi chú thêm
-            </h3>
+            <h3 className="font-bold text-[#0F172A] dark:text-[#F1F5F9] mb-3">Ghi chú thêm</h3>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ví dụ: Không hành, ít muối..."
-              className="w-full h-24 p-4 bg-gray-100 dark:bg-gray-800 border-0 rounded-2xl text-[#0F172A] dark:text-[#F1F5F9] placeholder:text-gray-400 dark:placeholder:text-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
+              className="w-full h-24 p-4 bg-gray-100 dark:bg-gray-800 border-0 rounded-2xl text-[#0F172A] dark:text-[#F1F5F9] resize-none focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
             />
           </div>
 
           <div className="mb-6">
-            <h3 className="font-bold text-[#0F172A] dark:text-[#F1F5F9] mb-3">
-              Số lượng
-            </h3>
+            <h3 className="font-bold text-[#0F172A] dark:text-[#F1F5F9] mb-3">Số lượng</h3>
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="w-14 h-14 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95"
+                className="w-14 h-14 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center"
               >
-                <Minus
-                  className="w-6 h-6 text-gray-700 dark:text-gray-300"
-                  strokeWidth={2.5}
-                />
+                <Minus className="w-6 h-6 text-gray-700 dark:text-gray-300" />
               </button>
               <span className="text-3xl font-bold text-[#0F172A] dark:text-[#F1F5F9] min-w-[60px] text-center">
                 {quantity}
               </span>
               <button
                 onClick={() => setQuantity(quantity + 1)}
-                className="w-14 h-14 bg-[#FF6B00] rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95"
+                className="w-14 h-14 bg-[#FF6B00] rounded-2xl flex items-center justify-center"
               >
-                <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
+                <Plus className="w-6 h-6 text-white" />
               </button>
             </div>
           </div>
@@ -168,10 +136,10 @@ export function DishDetail({ dish, onClose, onAddToCart }: DishDetailProps) {
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={handleAddToCart}
-            className="w-full h-16 bg-[#FF6B00] text-white rounded-3xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-[#FF6B00]/30"
+            className="w-full h-16 bg-[#FF6B00] text-white rounded-3xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg"
           >
             <ShoppingCart className="w-6 h-6" strokeWidth={2.5} />
-            Thêm vào Giỏ - {(dish.price * quantity).toLocaleString("vi-VN")}đ
+            Thêm - {(dish.price * quantity).toLocaleString("vi-VN")}đ
           </motion.button>
         </div>
       </motion.div>

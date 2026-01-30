@@ -1,7 +1,6 @@
 import { BookOpen, ShoppingCart, Clock, Wallet, Settings } from "lucide-react";
-import { useCart } from "../contexts/CartContext";
-
-export type NavTab = "menu" | "cart" | "orders" | "payment" | "settings";
+import { useCart } from "../hooks/useCart"; // Fix: Import từ hooks
+import type { NavTab } from "../types";     // Fix: Import type từ types chung
 
 interface BottomNavProps {
   activeTab: NavTab;
@@ -43,7 +42,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
                   className={`w-6 h-6 ${isActive ? "text-[#FF6B00]" : "text-gray-400 dark:text-gray-500"}`}
                   strokeWidth={2}
                 />
-                {tab.badge && tab.badge > 0 && (
+                {tab.badge !== undefined && tab.badge > 0 && (
                   <span className="absolute -top-2 -right-2 w-5 h-5 bg-[#EF4444] text-white text-xs font-bold rounded-full flex items-center justify-center">
                     {tab.badge}
                   </span>

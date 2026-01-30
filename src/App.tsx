@@ -1,33 +1,145 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import { AnimatePresence } from "motion/react";
 import { toast, Toaster } from "sonner";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { CartProvider, useCart } from "./contexts/CartContext";
+import { CartProvider } from "./contexts/CartContext";
+// import { TableProvider } from "./contexts/TableContext"; // Chuyển sang lazy import
+import { useCart } from "./hooks/useCart";
+import { useTable } from "./hooks/useTable";
+import { orderService } from "./services/order.service";
+
+// Pages & Layouts
 import { WelcomeScreen } from "./pages/WelcomeScreen";
 import { MenuScreen } from "./pages/MenuScreen";
 import { DishDetail } from "./pages/DishDetail";
 import { Cart } from "./pages/Cart";
 import { OrderStatus } from "./pages/OrderStatus";
 import { Payment } from "./pages/Payment";
-import { BottomNav, type NavTab } from "./pages/BottomNav";
+import { BottomNav } from "./layouts/BottomNav";
 import { SettingsScreen } from "./pages/SettingsScreen";
-import type { Dish } from "./data/menu";
+import { Loader2 } from "lucide-react";
+
+// Types
+import type { NavTab, Menu, OrderResponse } from "./types";
+
+// --- FIX: Polyfill cho sockjs-client ---
+if (typeof window !== "undefined") {
+  const win = window as unknown as { global: Window };
+  if (!win.global) {
+    win.global = window;
+  }
+}
+
+// Lazy load TableProvider
+const TableProvider = lazy(() => 
+  import("./contexts/TableContext").then((module) => ({
+    default: module.TableProvider,
+  }))
+);
 
 function AppContent() {
-  const [showWelcome, setShowWelcome] = useState(true);
+  // --- KHÔI PHỤC LOGIC LẤY ID BÀN TỪ URL (HỖ TRỢ CẢ HASH & PATH) ---
+  const getTableId = () => {
+    // 1. Thử lấy từ path /table/2
+    const pathMatch = window.location.pathname.match(/\/table\/(\d+)/);
+    if (pathMatch && pathMatch[1]) {
+      return parseInt(pathMatch[1], 10);
+    }
+
+    // 2. Thử lấy từ hash #/table/2 (nếu dùng HashRouter)
+    const hashMatch = window.location.hash.match(/\/table\/(\d+)/);
+    if (hashMatch && hashMatch[1]) {
+      return parseInt(hashMatch[1], 10);
+    }
+
+    // 3. Thử lấy từ query param ?tableId=2
+    const queryParams = new URLSearchParams(window.location.search);
+    const paramId = queryParams.get("tableId");
+    if (paramId) {
+      return parseInt(paramId, 10);
+    }
+
+    // 4. Mặc định bàn 1 (Fallback nếu không tìm thấy ID nào)
+    return 1; 
+  };
+
+  const tableId = getTableId();
+
+  const { isTableOpened, tableName, joinTable } = useTable();
+  const { addToCart, clearCart } = useCart();
+
   const [activeTab, setActiveTab] = useState<NavTab>("menu");
-  const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
+  const [selectedDish, setSelectedDish] = useState<Menu | null>(null);
   const [showCart, setShowCart] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  
+  // State xác định đã có đơn hàng hay chưa
   const [hasOrdered, setHasOrdered] = useState(false);
 
-  // Simulate table number from QR scan token
-  const tableNumber = "12";
+  // --- SỬA: Init Table với logic bảo vệ session ---
+  useEffect(() => {
+    const storedTableId = localStorage.getItem("current-table-id");
+    const hasToken = localStorage.getItem("table-session-token");
 
-  const { addItem, clearCart } = useCart();
+    // Nếu đã có token và ID bàn trong storage
+    if (hasToken && storedTableId) {
+      const savedId = parseInt(storedTableId, 10);
+      
+      // Nếu ID trên URL KHÁC với ID đang có session -> Ép về ID cũ
+      if (tableId !== savedId) {
+        // 1. Sửa lại URL mà không reload trang
+        const correctPath = `/table/${savedId}`;
+        window.history.replaceState(null, '', correctPath);
+        
+        // 2. Join vào bàn đúng (bàn cũ)
+        joinTable(savedId);
+        
+        // 3. Thông báo cho người dùng
+        toast.warning(`Bạn đang có phiên hoạt động tại Bàn ${savedId}`, {
+          description: "Hệ thống đã tự động đưa bạn về đúng bàn.",
+          duration: 4000,
+        });
+        return;
+      }
+    }
+
+    // Trường hợp bình thường hoặc chưa có session
+    if (tableId) {
+      joinTable(tableId);
+    }
+  }, [tableId, joinTable]);
+
+  // Kiểm tra đơn hàng cũ khi load trang
+  useEffect(() => {
+    const checkActiveOrder = async () => {
+      if (!isTableOpened) return;
+
+      try {
+        const response = await orderService.getMyOrders();
+        
+        let orders: OrderResponse[] = [];
+        if (Array.isArray(response)) {
+          orders = response;
+        } else if (response && 'content' in response) {
+          orders = (response as { content: OrderResponse[] }).content;
+        }
+
+        const activeOrder = orders.find(o => 
+          ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'].includes(o.status)
+        );
+
+        if (activeOrder) {
+          setHasOrdered(true);
+        }
+      } catch (error) {
+        console.error("Failed to check active orders", error);
+      }
+    };
+
+    checkActiveOrder();
+  }, [isTableOpened]);
 
   useEffect(() => {
-    // Prevent scrolling on body when modals are open
     if (selectedDish || showCart || showPayment) {
       document.body.style.overflow = "hidden";
     } else {
@@ -36,24 +148,15 @@ function AppContent() {
   }, [selectedDish, showCart, showPayment]);
 
   const handleAddToCart = (
-    dish: Dish,
+    dish: Menu,
     quantity: number = 1,
     notes: string = "",
   ) => {
-    addItem({
-      id: dish.id,
-      name: dish.name,
-      price: dish.price,
-      image: dish.image,
-      quantity,
-      notes,
-    });
-
+    addToCart(dish, quantity, notes);
     toast.success("Đã thêm vào giỏ hàng!", {
       duration: 2000,
       position: "top-center",
     });
-
     setSelectedDish(null);
   };
 
@@ -67,15 +170,6 @@ function AppContent() {
       duration: 3000,
       position: "top-center",
     });
-
-    // Simulate order status updates
-    setTimeout(() => {
-      toast.info("Món sẵn sàng!", {
-        description: "Đơn hàng của bạn đã hoàn thành",
-        duration: 3000,
-        position: "top-center",
-      });
-    }, 5000);
   };
 
   const handleOrderMore = () => {
@@ -109,11 +203,16 @@ function AppContent() {
     }
   };
 
-  if (showWelcome) {
+  // Logic hiển thị tên bàn: Chỉ dùng tên lấy từ API (tableName)
+  // Nếu chưa load xong thì hiện "Đang tải..." chứ TUYỆT ĐỐI KHÔNG hiện ID bàn
+  const displayTableName = tableName || "Đang tải...";
+
+  if (!isTableOpened) {
     return (
       <WelcomeScreen
-        tableNumber={tableNumber}
-        onContinue={() => setShowWelcome(false)}
+        tableNumber={displayTableName}
+        tableId={tableId}
+        onContinue={() => {}}
       />
     );
   }
@@ -130,7 +229,7 @@ function AppContent() {
 
       {activeTab === "orders" && hasOrdered && (
         <OrderStatus
-          tableNumber={tableNumber}
+          tableNumber={displayTableName}
           onOrderMore={handleOrderMore}
           onRequestPayment={handleRequestPayment}
         />
@@ -180,7 +279,9 @@ function AppContent() {
         </div>
       )}
 
-      {activeTab === "settings" && <SettingsScreen tableNumber={tableNumber} />}
+      {activeTab === "settings" && (
+        <SettingsScreen tableNumber={displayTableName} />
+      )}
 
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
 
@@ -204,7 +305,7 @@ function AppContent() {
 
       <Payment
         isOpen={showPayment}
-        tableNumber={tableNumber}
+        tableNumber={displayTableName}
         onClose={() => setShowPayment(false)}
         onComplete={handlePaymentComplete}
       />
@@ -217,9 +318,17 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider>
-      <CartProvider>
-        <AppContent />
-      </CartProvider>
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] dark:bg-[#0F172A]">
+          <Loader2 className="w-8 h-8 animate-spin text-[#FF6B00]" />
+        </div>
+      }>
+        <TableProvider>
+          <CartProvider>
+            <AppContent />
+          </CartProvider>
+        </TableProvider>
+      </Suspense>
     </ThemeProvider>
   );
 }

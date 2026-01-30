@@ -1,6 +1,6 @@
 import { Search, Sun, Moon, ShoppingCart } from "lucide-react";
-import { useTheme } from "../contexts/ThemeContext";
-import { useCart } from "../contexts/CartContext";
+import { useTheme } from "../hooks/useTheme"; // Fix: Import từ hooks
+import { useCart } from "../hooks/useCart";   // Fix: Import từ hooks
 
 interface HeaderProps {
   onSearch: (query: string) => void;

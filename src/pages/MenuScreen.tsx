@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Header } from "../layouts/Header";
 import { CategoryFilter } from "./CategoryFilter";
 import { DishCard } from "./DishCard";
@@ -7,6 +7,7 @@ import { menuService } from "../services/menu.service";
 import type { Menu, Category } from "../types";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { useTable } from "../hooks/useTable"; // Import useTable
 
 interface MenuScreenProps {
   onDishClick: (dish: Menu) => void;
@@ -19,6 +20,9 @@ export function MenuScreen({
   onAddToCart,
   onCartClick,
 }: MenuScreenProps) {
+  // Lấy signal update từ Context
+  const { lastMenuUpdate } = useTable();
+
   const [activeCategoryId, setActiveCategoryId] = useState<number | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -26,25 +30,38 @@ export function MenuScreen({
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [menuData, catData] = await Promise.all([
-          menuService.getPublicMenus({ size: 100 }), // Lấy tất cả menu active
-          menuService.getCategories()
-        ]);
-        setMenus(menuData.content);
-        setCategories(catData.content);
-      } catch (error) {
-        console.error("Failed to load menu", error);
-        toast.error("Không thể tải thực đơn. Vui lòng thử lại.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  // Tách logic fetch data ra hàm riêng
+  const fetchData = useCallback(async (isBackgroundUpdate = false) => {
+    try {
+      if (!isBackgroundUpdate) setLoading(true);
+      
+      const [menuData, catData] = await Promise.all([
+        menuService.getPublicMenus({ size: 100 }), 
+        menuService.getCategories()
+      ]);
+      
+      setMenus(menuData.content);
+      setCategories(catData.content);
+    } catch (error) {
+      console.error("Failed to load menu", error);
+      if (!isBackgroundUpdate) toast.error("Không thể tải thực đơn. Vui lòng thử lại.");
+    } finally {
+      if (!isBackgroundUpdate) setLoading(false);
+    }
   }, []);
+
+  // Effect 1: Load lần đầu
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Effect 2: Load lại khi có sự kiện Socket (lastMenuUpdate thay đổi)
+  useEffect(() => {
+    if (lastMenuUpdate > 0) {
+      console.log("Menu update signal received!");
+      fetchData(true); // true để không hiện loading spinner làm gián đoạn trải nghiệm
+    }
+  }, [lastMenuUpdate, fetchData]);
 
   const filteredDishes = menus.filter((dish) => {
     const matchesCategory =

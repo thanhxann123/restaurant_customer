@@ -1,7 +1,11 @@
 import { motion } from "motion/react";
-import { X, Wallet, QrCode, CreditCard, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
-import { useCart } from "../hooks/useCart";
+import { X, Wallet, QrCode, CreditCard, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+// import { useCart } from "../hooks/useCart"; // Đã xóa vì không sử dụng total
+import { useTable } from "../hooks/useTable";
+import { orderService } from "../services/order.service";
+import { toast } from "sonner";
+import type { OrderResponse } from "../types"; // Import type để fix lỗi any
 
 interface PaymentProps {
   isOpen: boolean;
@@ -18,57 +22,117 @@ export function Payment({
   onClose,
   onComplete,
 }: PaymentProps) {
-  const { total } = useCart();
+  // Bỏ tableId thừa
+  const { paymentQrCode, clearPaymentState } = useTable();
+  const [activeOrderId, setActiveOrderId] = useState<number | null>(null);
+
+  // Bỏ total từ useCart vì không dùng
+  
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("cash");
-  const [isPaying, setIsPaying] = useState(false);
-  const [isCompleted, setIsCompleted] = useState(false);
+  const [isRequesting, setIsRequesting] = useState(false);
+  const [isWaitingForConfirm, setIsWaitingForConfirm] = useState(false);
 
-  const tax = total * 0.1;
-  const finalTotal = total + tax;
+  // Fetch active order ID khi mở popup
+  useEffect(() => {
+    if (isOpen) {
+        const fetchOrder = async () => {
+            try {
+                const orders = await orderService.getMyOrders();
+                
+                // Fix lỗi 'Unexpected any': Kiểm tra type an toàn
+                let response: OrderResponse[] = [];
+                if (Array.isArray(orders)) {
+                    response = orders;
+                } else if (orders && 'content' in orders) {
+                    // Ép kiểu tường minh cho PagedResponse
+                    response = (orders as { content: OrderResponse[] }).content;
+                }
 
-  const paymentMethods = [
-    { id: "cash", label: "Tiền mặt tại quầy", icon: Wallet },
-    { id: "qr", label: "QR Code (Momo/ZaloPay)", icon: QrCode },
-    { id: "card", label: "Thẻ ATM / Visa", icon: CreditCard },
-  ];
-
-  const handlePayment = async () => {
-    setIsPaying(true);
-    // Trong thực tế sẽ gọi API báo nhân viên cần thanh toán
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setIsPaying(false);
-      setIsCompleted(true);
-      setTimeout(() => {
-        onComplete();
-      }, 2000);
-    } catch (e) {
-      console.error("Payment failed", e);
-      setIsPaying(false);
+                const current = response.find(o => 
+                    ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'].includes(o.status)
+                );
+                
+                if (current) setActiveOrderId(current.id);
+            } catch (error) {
+                console.error("Failed to fetch order for payment", error);
+            }
+        }
+        fetchOrder();
     }
+  }, [isOpen]);
+
+  const handleRequestPayment = async () => {
+    if (!activeOrderId) {
+        toast.error("Không tìm thấy đơn hàng cần thanh toán.");
+        return;
+    }
+
+    setIsRequesting(true);
+    try {
+      // Gọi API yêu cầu thanh toán
+      await orderService.requestPayment(activeOrderId, selectedMethod);
+      setIsRequesting(false);
+      setIsWaitingForConfirm(true); // Chuyển sang màn hình chờ QR/Xác nhận
+    } catch (e) {
+      console.error("Payment request failed", e);
+      toast.error("Lỗi khi gửi yêu cầu.");
+      setIsRequesting(false);
+    }
+  };
+
+  const handleFinish = () => {
+      clearPaymentState(); // Xóa QR lưu trong context
+      onComplete();
   };
 
   if (!isOpen) return null;
 
-  if (isCompleted) {
+  // Màn hình 3: Hiển thị QR Code khi nhân viên đã xác nhận (qua Socket)
+  if (paymentQrCode) {
+      return (
+        <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="fixed inset-0 z-50 bg-white dark:bg-[#1E293B] flex flex-col items-center justify-center p-6"
+      >
+        <h2 className="text-2xl font-bold text-[#0F172A] dark:text-[#F1F5F9] mb-4">Quét mã để thanh toán</h2>
+        <div className="bg-white p-4 rounded-3xl shadow-xl mb-6">
+            <img src={paymentQrCode} alt="Payment QR Code" className="w-64 h-64 object-contain" />
+        </div>
+        <p className="text-gray-500 mb-8 text-center">Vui lòng quét mã trên bằng ứng dụng ngân hàng hoặc ví điện tử.</p>
+        
+        <button onClick={handleFinish} className="w-full max-w-sm h-14 bg-[#10B981] text-white rounded-3xl font-bold text-lg shadow-lg">
+            Tôi đã thanh toán xong
+        </button>
+      </motion.div>
+      )
+  }
+
+  // Màn hình 2: Đang chờ nhân viên xác nhận
+  if (isWaitingForConfirm) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="fixed inset-0 z-50 bg-gradient-to-br from-[#10B981] to-[#059669] flex items-center justify-center"
+        className="fixed inset-0 z-50 bg-gradient-to-br from-[#FF6B00] to-[#FF8533] flex items-center justify-center"
       >
         <div className="text-center text-white px-6">
-          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="mb-6">
-            <CheckCircle2 className="w-24 h-24 mx-auto" strokeWidth={2} />
+          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className="mb-6 inline-block">
+            <Loader2 className="w-20 h-20 mx-auto" strokeWidth={2} />
           </motion.div>
-          <h1 className="text-3xl font-bold mb-3">Cảm ơn quý khách!</h1>
-          <p className="text-xl mb-2">Đang chờ nhân viên xác nhận hóa đơn bàn {tableNumber}</p>
-          <p className="text-white/80">Hẹn gặp lại quý khách!</p>
+          <h1 className="text-2xl font-bold mb-3">Đã gửi yêu cầu!</h1>
+          <p className="text-xl mb-2">Vui lòng đợi nhân viên xác nhận...</p>
+          <p className="text-white/80 text-sm mt-4">Mã QR sẽ xuất hiện ngay sau khi nhân viên xác nhận.</p>
+          
+          <button onClick={onClose} className="mt-8 text-white/70 hover:text-white underline">
+              Đóng và đợi sau
+          </button>
         </div>
       </motion.div>
     );
   }
 
+  // Màn hình 1: Chọn phương thức
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -92,16 +156,20 @@ export function Payment({
         </div>
 
         <div className="p-6 pb-32">
-          <div className="bg-gradient-to-br from-[#FF6B00] to-[#FF8533] rounded-3xl p-6 text-white mb-6">
-            <p className="text-white/80 mb-1">Tổng thanh toán</p>
-            <h2 className="text-4xl font-bold mb-3">{finalTotal.toLocaleString("vi-VN")}đ</h2>
-            <p className="text-white/80 text-sm">Bàn số {tableNumber}</p>
+          {/* Thông tin bàn */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 mb-6 text-center">
+              <p className="text-gray-500">Đang yêu cầu thanh toán cho</p>
+              <p className="font-bold text-xl text-[#FF6B00]">{tableNumber}</p>
           </div>
 
           <div className="mb-6">
             <h3 className="font-bold text-[#0F172A] dark:text-[#F1F5F9] mb-3">Chọn phương thức</h3>
             <div className="space-y-3">
-              {paymentMethods.map((method) => {
+              {[
+                { id: "cash", label: "Tiền mặt tại quầy", icon: Wallet },
+                { id: "qr", label: "Quét mã QR (VietQR)", icon: QrCode },
+                { id: "card", label: "Thẻ ATM / Visa", icon: CreditCard },
+              ].map((method) => {
                 const Icon = method.icon;
                 return (
                   <button
@@ -124,8 +192,8 @@ export function Payment({
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-[#1E293B] border-t">
-          <motion.button whileTap={{ scale: 0.98 }} onClick={handlePayment} disabled={isPaying} className="w-full h-16 bg-[#FF6B00] text-white rounded-3xl font-bold text-lg disabled:opacity-50">
-            {isPaying ? "Đang xử lý..." : "Xác nhận thanh toán"}
+          <motion.button whileTap={{ scale: 0.98 }} onClick={handleRequestPayment} disabled={isRequesting} className="w-full h-16 bg-[#FF6B00] text-white rounded-3xl font-bold text-lg disabled:opacity-50 flex items-center justify-center gap-2">
+            {isRequesting ? (<><Loader2 className="animate-spin"/> Đang gửi...</>) : "Gửi yêu cầu"}
           </motion.button>
         </div>
       </motion.div>

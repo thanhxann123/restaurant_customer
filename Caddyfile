@@ -3,15 +3,17 @@
     file_server
     try_files {path} /index.html
 
-    # Proxy cho API
+    # Proxy API
     reverse_proxy /api/* http://54.151.167.190:8080
 
-    # Proxy cho WebSocket/SockJS
-    # Dùng reverse_proxy thẳng mà không có handle_path để giữ nguyên /ws
+    # Proxy WebSocket đặc trị cho SockJS/STOMP
     reverse_proxy /ws/* http://54.151.167.190:8080 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
         header_up Connection {>Connection}
         header_up Upgrade {>Upgrade}
+        
+        # Tắt buffer để dữ liệu socket đi thẳng ngay lập tức
+        flush_interval -1
     }
 }

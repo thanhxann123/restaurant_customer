@@ -14,7 +14,7 @@ class SocketService {
     this.client = new Client({
       // Sử dụng SockJS để tương thích tốt hơn các trình duyệt cũ
       webSocketFactory: () => new SockJS(SOCKET_URL),
-
+      debug: (str) => console.log("STOMP Debug Xan:", str),
       // Cấu hình tự động kết nối lại
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,

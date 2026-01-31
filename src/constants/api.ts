@@ -1,6 +1,5 @@
 // Định nghĩa đường dẫn gốc API
-export const API_BASE_URL = "/api";
-
+export const API_BASE_URL = "http://54.151.167.190:8080/api";
 export const API_ENDPOINTS = {
   // Đã xóa AUTH vì ứng dụng không có chức năng đăng nhập
   MENUS: {

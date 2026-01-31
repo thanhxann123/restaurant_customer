@@ -4,7 +4,7 @@ import type { Message } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
 // URL socket của backend (Thường là root + /ws, không qua /api)
-const SOCKET_URL = "/ws";
+const SOCKET_URL = "http://54.151.167.190:8080/ws";
 
 class SocketService {
   private client: Client;

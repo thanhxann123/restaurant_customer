@@ -1,10 +1,10 @@
-import { Client } from '@stomp/stompjs';
-import type { Message } from '@stomp/stompjs';
+import { Client } from "@stomp/stompjs";
+import type { Message } from "@stomp/stompjs";
 // @ts-expect-error: sockjs-client does not have bundled types, install @types/sockjs-client if needed
-import SockJS from 'sockjs-client';
+import SockJS from "sockjs-client";
 
 // URL socket của backend (Thường là root + /ws, không qua /api)
-const SOCKET_URL = 'http://localhost:8080/ws';
+const SOCKET_URL = "http://54.151.167.190:8080/ws";
 
 class SocketService {
   private client: Client;
@@ -14,28 +14,28 @@ class SocketService {
     this.client = new Client({
       // Sử dụng SockJS để tương thích tốt hơn các trình duyệt cũ
       webSocketFactory: () => new SockJS(SOCKET_URL),
-      
+
       // Cấu hình tự động kết nối lại
-      reconnectDelay: 5000, 
+      reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
-      
+
       // debug: (str) => console.log(str), // Bật dòng này để xem log chi tiết khi dev
     });
 
     this.client.onConnect = () => {
       this.connected = true;
-      console.log('✅ Connected to WebSocket');
+      console.log("✅ Connected to WebSocket");
     };
 
     this.client.onDisconnect = () => {
       this.connected = false;
-      console.log('❌ Disconnected from WebSocket');
+      console.log("❌ Disconnected from WebSocket");
     };
 
     this.client.onStompError = (frame) => {
-      console.error('Broker reported error: ' + frame.headers['message']);
-      console.error('Additional details: ' + frame.body);
+      console.error("Broker reported error: " + frame.headers["message"]);
+      console.error("Additional details: " + frame.body);
     };
   }
 
@@ -56,7 +56,7 @@ class SocketService {
       const originalOnConnect = this.client.onConnect;
       this.client.onConnect = (frame) => {
         originalOnConnect(frame); // Chạy logic gốc (set connected = true)
-        onConnectCallback();      // Chạy logic của user (subscribe...)
+        onConnectCallback(); // Chạy logic của user (subscribe...)
       };
     }
 
@@ -81,13 +81,13 @@ class SocketService {
   subscribe<T = unknown>(topic: string, callback: (data: T) => void) {
     // Nếu chưa kết nối, thử kết nối trước rồi mới subscribe
     if (!this.client.active || !this.connected) {
-      console.warn('Socket not connected. Connecting first...');
+      console.warn("Socket not connected. Connecting first...");
       this.connect(() => {
         this.doSubscribe<T>(topic, callback);
       });
       return;
     }
-    
+
     return this.doSubscribe<T>(topic, callback);
   }
 
@@ -101,7 +101,7 @@ class SocketService {
           callback(data);
         }
       } catch (e) {
-        console.error('Error parsing socket message', e);
+        console.error("Error parsing socket message", e);
       }
     });
   }

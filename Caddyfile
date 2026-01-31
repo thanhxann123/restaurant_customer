@@ -1,0 +1,18 @@
+:8080 {
+    root * dist
+    file_server
+    try_files {path} /index.html
+
+    # Proxy cho API (Lưu ý: thay IP AWS của bạn vào)
+    handle_path /api/* {
+        reverse_proxy http://13.250.xx.xx:8080 
+    }
+
+    # Proxy cho WebSocket
+    handle_path /socket/* {
+        reverse_proxy http://13.250.xx.xx:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+}

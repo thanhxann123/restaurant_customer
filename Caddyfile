@@ -3,16 +3,19 @@
     file_server
     try_files {path} /index.html
 
-    # Proxy cho API (Lưu ý: thay IP AWS của bạn vào)
+    # Proxy cho API (Như đã nói ở câu trước)
     handle_path /api/* {
-        reverse_proxy http://13.250.xx.xx:8080 
+        reverse_proxy http://54.151.167.190:8080
     }
 
-    # Proxy cho WebSocket
-    handle_path /socket/* {
-        reverse_proxy http://13.250.xx.xx:8080 {
+    # Proxy cho WebSocket STOMP (Cực kỳ quan trọng cho SockJS)
+    handle /ws/* {
+        reverse_proxy http://54.151.167.190:8080 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
+            # SockJS cần các header này để nâng cấp kết nối (Upgrade)
+            header_up Connection {>Connection}
+            header_up Upgrade {>Upgrade}
         }
     }
 }
